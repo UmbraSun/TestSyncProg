@@ -6,30 +6,32 @@ namespace TestSyncProg.DbContexts
 {
     public class SqLiteDbContext : IDisposable
     {
-        public static readonly SqLiteDbContext _instance = new SqLiteDbContext();
         public readonly SQLiteConnection _connection;
-        private const string _databaseFileName = "TestSqlite.db";
         private const SQLiteOpenFlags _flags = SQLiteOpenFlags.ReadWrite | SQLiteOpenFlags.Create | SQLiteOpenFlags.SharedCache;
-        private string _databasePath
-            => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), _databaseFileName);
+        private string DatabasePath(string databaseFileName) 
+            => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), databaseFileName);
 
         private bool isDisposed;
         private object _lock = new object();
 
-        private SqLiteDbContext()
+        public SqLiteDbContext(string databaseFileName)
         {
-            _connection = new SQLiteConnection(_databasePath, _flags);
+            var path = DatabasePath(databaseFileName);
+            _connection = new SQLiteConnection(path, _flags);
             ConfigureDataSets();
         }
 
         public SqliteDataSet<MaterialSqlite> Materials { get; set; }
 
+        public SqliteDataSet<EntityTrackerMSSql> LocalEntityTracer { get; set; }
+
         public SqliteDataSet<ConfigsSqLite> Configs { get; set; }
 
         private void ConfigureDataSets()
         {
-            Materials = new SqliteDataSet<MaterialSqlite>(_connection);
             Configs = new SqliteDataSet<ConfigsSqLite>(_connection);
+            Materials = new SqliteDataSet<MaterialSqlite>(_connection);
+            LocalEntityTracer = new SqliteDataSet<EntityTrackerMSSql>(_connection);
         }
 
         ~SqLiteDbContext() => Dispose(false);

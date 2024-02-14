@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TestSyncProg.DbContexts;
 
@@ -11,9 +12,10 @@ using TestSyncProg.DbContexts;
 namespace TestSyncProg.Migrations
 {
     [DbContext(typeof(MSSqlDbContext))]
-    partial class MSSqlDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240214063618_ChangeConstraintForTracker")]
+    partial class ChangeConstraintForTracker
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,6 +23,34 @@ namespace TestSyncProg.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder, 1L, 1);
+
+            modelBuilder.Entity("TestSyncProg.Entity.EntityTrackerConstraint", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"), 1L, 1);
+
+                    b.Property<long>("LocalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TrackerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UniqueUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TrackerId");
+
+                    b.HasIndex("LocalId", "UniqueUserId")
+                        .IsUnique();
+
+                    b.ToTable("TrackerConstraints");
+                });
 
             modelBuilder.Entity("TestSyncProg.Entity.EntityTrackerMSSql", b =>
                 {
@@ -33,9 +63,6 @@ namespace TestSyncProg.Migrations
                     b.Property<int>("CommandType")
                         .HasColumnType("int");
 
-                    b.Property<long>("LocalId")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("ModelJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -46,12 +73,9 @@ namespace TestSyncProg.Migrations
 
                     b.Property<string>("UniqueUserId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("UniqueUserId", "LocalId")
-                        .IsUnique();
 
                     b.ToTable("EntityTracker");
                 });
@@ -77,6 +101,17 @@ namespace TestSyncProg.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Materials");
+                });
+
+            modelBuilder.Entity("TestSyncProg.Entity.EntityTrackerConstraint", b =>
+                {
+                    b.HasOne("TestSyncProg.Entity.EntityTrackerMSSql", "Tracker")
+                        .WithMany()
+                        .HasForeignKey("TrackerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tracker");
                 });
 #pragma warning restore 612, 618
         }

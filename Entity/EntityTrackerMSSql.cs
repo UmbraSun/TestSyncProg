@@ -11,4 +11,8 @@ public class EntityTrackerMSSql
     public CommandTypeEnum CommandType { get; set; }
 
     public string ModelJson { get; set; }
+
+    public string UniqueUserId { get; set; }
+
+    public long LocalId { get; set; }
 }

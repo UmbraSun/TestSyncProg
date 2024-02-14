@@ -1,6 +1,14 @@
-﻿namespace TestSyncProg.Entity;
+﻿using SQLite;
+using TestSyncProg.Common;
+
+namespace TestSyncProg.Entity;
 
 public class ConfigsSqLite
 {
-    public long LastUpdatedServerId { get; set; }
+    [PrimaryKey, AutoIncrement]
+    public int Id { get; set; }
+
+    public ConfigType ConfigType { get; set; }
+
+    public long Value { get; set; }
 }

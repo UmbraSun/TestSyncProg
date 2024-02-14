@@ -1,6 +1,5 @@
-﻿using Microsoft.Data.SqlClient;
+﻿using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using TestSyncProg.Entity;
 
 namespace TestSyncProg.DbContexts
@@ -18,6 +17,13 @@ namespace TestSyncProg.DbContexts
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             optionsBuilder.UseSqlServer("server =.;database=TestDb;trusted_connection = true");
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<EntityTrackerMSSql>().HasIndex(x => new { x.UniqueUserId, x.LocalId }).IsUnique();
         }
     }
 }

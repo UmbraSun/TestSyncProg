@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TestSyncProg.DbContexts;
 
@@ -11,9 +12,10 @@ using TestSyncProg.DbContexts;
 namespace TestSyncProg.Migrations
 {
     [DbContext(typeof(MSSqlDbContext))]
-    partial class MSSqlDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240214080352_AddUniqueConstraint")]
+    partial class AddUniqueConstraint
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
