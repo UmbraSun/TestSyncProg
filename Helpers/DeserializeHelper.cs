@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using TestSyncProg.Common;
 using TestSyncProg.DbContexts;
 using TestSyncProg.Entity;
 
@@ -6,12 +7,21 @@ namespace TestSyncProg.Helpers
 {
     public static class DeserializeHelper
     {
-        public static object GetAnEntityOfSqlite(string jsonModel, string modelType)
+        public static object GetAnEntityOfSqlite(SqLiteDbContext context,
+            string jsonModel, string modelType, CommandTypeEnum commandType)
         {
             switch (modelType)
             {
                 case nameof(MaterialSqlite):
-                    return JsonConvert.DeserializeObject<MaterialSqlite>(jsonModel);
+                    var model = JsonConvert.DeserializeObject<MaterialSqlite>(jsonModel);
+                    if (commandType == CommandTypeEnum.Edit)
+                    {
+                        var entity = context.Materials.Query().FirstOrDefault(x => x.ServerId == model.ServerId);
+                        if (entity is null)
+                            return default;
+                        model.Id = entity.Id;
+                    }
+                    return model;
                 default:
                     return null;
             }

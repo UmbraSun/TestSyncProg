@@ -22,8 +22,6 @@ namespace TestSyncProg.DbContexts
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-
-            modelBuilder.Entity<EntityTrackerMSSql>().HasIndex(x => new { x.UniqueUserId, x.LocalId }).IsUnique();
         }
     }
 }

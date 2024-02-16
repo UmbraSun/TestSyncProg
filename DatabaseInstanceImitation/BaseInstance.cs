@@ -5,6 +5,9 @@ using TestSyncProg.DbContexts;
 using TestSyncProg.DTO;
 using TestSyncProg.Entity;
 using TestSyncProg.Helpers;
+using Xamarin.Forms.PlatformConfiguration;
+using Xamarin.Forms;
+using System.Net.NetworkInformation;
 
 namespace TestSyncProg.DatabaseInstanceImitation
 {
@@ -34,6 +37,8 @@ namespace TestSyncProg.DatabaseInstanceImitation
 
         protected virtual async void SendSyncData()
         {
+            var guid = Guid.NewGuid();
+            var uniqId = guid.ToString() + DateTime.UtcNow.ToString();
             int i = default;
             while (true)
             {
@@ -48,16 +53,19 @@ namespace TestSyncProg.DatabaseInstanceImitation
                 };
 
                 await AddModelToBases(model);
-
-                //var randomId = new Random().Next(default, _context.Materials.Query().LastOrDefault()?.Id ?? default);
-
-                //do
-                //{
-                //    model = _context.Materials.Query().FirstOrDefault(x => x.Id == randomId);
-                //}
-                //while (model is null);
-                //model.Name = model.Name + " edited";
-                //EditModelInBases(id, model);
+                int k = 0;
+                do
+                {
+                    var randomId = new Random().Next(default, (_context.Materials.Query().LastOrDefault()?.Id ?? default) + 1);
+                    model = _context.Materials.Query().FirstOrDefault(x => x.Id == randomId);
+                    if (++k > 100)
+                        break;
+                }
+                while (model is null);
+                if (++k > 100)
+                    continue;
+                model.Name = model.Name + " edited";
+                await EditModelInBases(model);
             }
         }
 
@@ -69,8 +77,6 @@ namespace TestSyncProg.DatabaseInstanceImitation
                 if (!_context.Materials.TryInsert(model))
                     throw new Exception("Can't to add in local db");
 
-                var localIdConfig = _context.Configs.Query().FirstOrDefault(x => x.ConfigType == ConfigType.LastLocalId);
-                var localId = localIdConfig?.Value ?? 0;
                 connection.Commit();
 
                 connection.BeginTransaction();
@@ -78,42 +84,9 @@ namespace TestSyncProg.DatabaseInstanceImitation
                 foreach (var responce in syncResponce.ResponceToAddingModels)
                     DeserializeHelper.UpdateEntityServerIdByName(_context, responce.TableName, responce.LocalId, responce.ServerId);
 
-                if (localIdConfig is null)
-                    _context.Configs.TryInsert(new ConfigsSqLite { ConfigType = ConfigType.LastLocalId, Value = syncResponce.LastUpdatedEntityTrackerId ?? default });
-                else
-                {
-                    if (syncResponce.LastUpdatedEntityTrackerId.HasValue)
-                    {
-                        localIdConfig.Value = syncResponce.LastUpdatedEntityTrackerId.Value;
-                        _context.Configs.TryUpdate(localIdConfig);
-                    }
-                }
                 connection.Commit();
             }
             catch (Exception ex)
-            {
-                connection.Rollback();
-            }
-        }
-
-        private void EditModelInBases(long? localTracerLastId, MaterialSqlite model)
-        {
-            try
-            {
-                connection.BeginTransaction();
-                var tracerModel = new EntityTrackerMSSql
-                {
-                    Id = ++localTracerLastId ?? 1,
-                    CommandType = CommandTypeEnum.Edit,
-                    TableName = nameof(MaterialSqlite),
-                    ModelJson = JsonConvert.SerializeObject(model),
-                    UniqueUserId = _baseName
-                };
-                if (!_context.Materials.TryUpdate(model))
-                    return;
-                connection.Commit();
-            }
-            catch
             {
                 connection.Rollback();
             }
@@ -133,7 +106,6 @@ namespace TestSyncProg.DatabaseInstanceImitation
             var check = _msSqlContextSet.EntityTracker.FirstOrDefault(x => x.LocalId == model.Id && x.UniqueUserId == _baseName);
             if (check != null)
             {
-                responce.LastUpdatedEntityTrackerId = check.Id;
                 responce.ResponceToAddingModels.Add(new ResponceToAddingModel
                 {
                     TableName = nameof(MaterialSqlite),
@@ -163,13 +135,45 @@ namespace TestSyncProg.DatabaseInstanceImitation
             });
             await _msSqlContextSet.SaveChangesAsync();
 
-            responce.LastUpdatedEntityTrackerId = addTrackerResponce.Entity.Id;
             responce.ResponceToAddingModels.Add(new ResponceToAddingModel
             {
                 TableName = nameof(MaterialSqlite),
                 LocalId = model.Id,
                 ServerId = addMaterialResponce.Entity.Id
             });
+        }
+
+        private async Task EditModelInBases(MaterialSqlite model)
+        {
+            try
+            {
+                connection.BeginTransaction();
+                if (!_context.Materials.TryUpdate(model))
+                    throw new Exception();
+                connection.Commit();
+
+                var updateEntity = _msSqlContextSet.Materials.FirstOrDefault(x => x.Id == model.ServerId);
+                updateEntity.Name = model.Name;
+                updateEntity.LastUpdate = model.LastUpdate;
+                updateEntity.IsDeleted = model.IsDeleted;
+                _msSqlContextSet.Materials.Update(updateEntity);
+                await _msSqlContextSet.SaveChangesAsync();
+
+                await _msSqlContextSet.EntityTracker.AddAsync(new EntityTrackerMSSql
+                {
+                    ServerId = updateEntity.Id,
+                    LocalId = model.Id,
+                    CommandType = CommandTypeEnum.Edit,
+                    ModelJson = JsonConvert.SerializeObject(model),
+                    TableName = nameof(MaterialSqlite),
+                    UniqueUserId = _baseName
+                });
+                await _msSqlContextSet.SaveChangesAsync();
+            }
+            catch
+            {
+                connection.Rollback();
+            }
         }
 
 
@@ -207,7 +211,7 @@ namespace TestSyncProg.DatabaseInstanceImitation
                     }
                     connection.Commit();
                 }
-                catch
+                catch(Exception ex)
                 {
                     connection.Rollback();
                 }
@@ -219,10 +223,10 @@ namespace TestSyncProg.DatabaseInstanceImitation
             switch (entity.CommandType)
             {
                 case CommandTypeEnum.Add:
-                    connection.Insert(DeserializeHelper.GetAnEntityOfSqlite(entity.ModelJson, entity.TableName));
+                    connection.Insert(DeserializeHelper.GetAnEntityOfSqlite( _context, entity.ModelJson, entity.TableName, entity.CommandType));
                     break;
                 case CommandTypeEnum.Edit:
-                    connection.Update(DeserializeHelper.GetAnEntityOfSqlite(entity.ModelJson, entity.TableName));
+                    connection.Update(DeserializeHelper.GetAnEntityOfSqlite(_context, entity.ModelJson, entity.TableName, entity.CommandType));
                     break;
                 default:
                     break;

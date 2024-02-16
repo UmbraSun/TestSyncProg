@@ -2,6 +2,5 @@
 
 public enum ConfigType
 {
-    LastServerId,
-    LastLocalId
+    LastServerId
 }
