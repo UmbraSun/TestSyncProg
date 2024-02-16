@@ -5,9 +5,6 @@ using TestSyncProg.DbContexts;
 using TestSyncProg.DTO;
 using TestSyncProg.Entity;
 using TestSyncProg.Helpers;
-using Xamarin.Forms.PlatformConfiguration;
-using Xamarin.Forms;
-using System.Net.NetworkInformation;
 
 namespace TestSyncProg.DatabaseInstanceImitation
 {
@@ -38,7 +35,7 @@ namespace TestSyncProg.DatabaseInstanceImitation
         protected virtual async void SendSyncData()
         {
             var guid = Guid.NewGuid();
-            var uniqId = guid.ToString() + DateTime.UtcNow.ToString();
+            var uniqId = $"{guid.ToString("D")} {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fffffff")}";
             int i = default;
             while (true)
             {
@@ -75,7 +72,7 @@ namespace TestSyncProg.DatabaseInstanceImitation
             {
                 connection.BeginTransaction();
                 if (!_context.Materials.TryInsert(model))
-                    throw new Exception("Can't to add in local db");
+                    throw new Exception("Can't add in local db");
 
                 connection.Commit();
 
