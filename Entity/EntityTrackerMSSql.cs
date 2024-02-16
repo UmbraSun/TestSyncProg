@@ -1,4 +1,5 @@
-﻿using TestSyncProg.Common;
+﻿using SQLite;
+using TestSyncProg.Common;
 
 namespace TestSyncProg.Entity;
 
@@ -15,4 +16,6 @@ public class EntityTrackerMSSql
     public string UniqueUserId { get; set; }
 
     public long LocalId { get; set; }
+
+    public long ServerId { get; set; }
 }

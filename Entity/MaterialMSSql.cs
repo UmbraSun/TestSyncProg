@@ -1,6 +1,8 @@
-﻿namespace TestSyncProg.Entity;
+﻿using TestSyncProg.Interfaces;
 
-public class MaterialMSSql
+namespace TestSyncProg.Entity;
+
+public class MaterialMSSql : IHasId
 {
     public int Id { get; set; }
 

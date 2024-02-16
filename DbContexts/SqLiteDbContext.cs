@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using SQLite;
+﻿using SQLite;
 using TestSyncProg.Entity;
 
 namespace TestSyncProg.DbContexts
@@ -23,15 +22,12 @@ namespace TestSyncProg.DbContexts
 
         public SqliteDataSet<MaterialSqlite> Materials { get; set; }
 
-        public SqliteDataSet<EntityTrackerMSSql> LocalEntityTracer { get; set; }
-
         public SqliteDataSet<ConfigsSqLite> Configs { get; set; }
 
         private void ConfigureDataSets()
         {
             Configs = new SqliteDataSet<ConfigsSqLite>(_connection);
             Materials = new SqliteDataSet<MaterialSqlite>(_connection);
-            LocalEntityTracer = new SqliteDataSet<EntityTrackerMSSql>(_connection);
         }
 
         ~SqLiteDbContext() => Dispose(false);
