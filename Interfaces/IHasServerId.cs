@@ -2,6 +2,6 @@
 {
     public interface IHasServerId
     {
-        public int ServerId { get; set; }
+        public int? ServerId { get; set; }
     }
 }

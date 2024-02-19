@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using System;
+using Newtonsoft.Json;
 using SQLite;
 using TestSyncProg.Common;
 using TestSyncProg.DbContexts;
@@ -10,16 +11,21 @@ namespace TestSyncProg.DatabaseInstanceImitation
 {
     public class BaseInstance
     {
-        private readonly string _baseName;
-        protected readonly SqLiteDbContext _context;
+        private readonly string _uniqueUserName;
+        protected readonly SqLiteDbContext _contextGet;
+        protected readonly SqLiteDbContext _contextSet;
         protected readonly MSSqlDbContext _msSqlContextGet = new MSSqlDbContext();
         protected readonly MSSqlDbContext _msSqlContextSet = new MSSqlDbContext();
-        protected SQLiteConnection connection => _context._connection;
+        protected SQLiteConnection connectionGet => _contextGet._connection;
+        protected SQLiteConnection connectionSet => _contextSet._connection;
 
         public BaseInstance(string baseName)
         {
-            _baseName = baseName;
-            _context = new SqLiteDbContext(baseName);
+            //var guid = Guid.NewGuid();
+            //_uniqueUserName = $"{guid.ToString("D")} {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fffffff")}";
+            _uniqueUserName = baseName;
+            _contextGet = new SqLiteDbContext(baseName);
+            _contextSet = new SqLiteDbContext(baseName);
             StartTasks();
         }
 
@@ -34,27 +40,29 @@ namespace TestSyncProg.DatabaseInstanceImitation
 
         protected virtual async void SendSyncData()
         {
-            var guid = Guid.NewGuid();
-            var uniqId = $"{guid.ToString("D")} {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fffffff")}";
             int i = default;
+            int l = default;
             while (true)
             {
                 await Task.Delay(9000);
 
+                #region Add to bases
                 var model = new MaterialSqlite
                 {
-                    IsDeleted = false,
+                    IsUpdatedLocal = false,
                     LastUpdate = DateTime.UtcNow,
                     Name = $"material {++i}",
                     ServerId = null
                 };
-
                 await AddModelToBases(model);
+                #endregion
+
+                #region Edit model
                 int k = 0;
                 do
                 {
-                    var randomId = new Random().Next(default, (_context.Materials.Query().LastOrDefault()?.Id ?? default) + 1);
-                    model = _context.Materials.Query().FirstOrDefault(x => x.Id == randomId);
+                    var randomId = new Random().Next(default, (_contextSet.Materials.Query().LastOrDefault()?.Id ?? default) + 1);
+                    model = _contextSet.Materials.Query().FirstOrDefault(x => x.Id == randomId);
                     if (++k > 100)
                         break;
                 }
@@ -62,7 +70,26 @@ namespace TestSyncProg.DatabaseInstanceImitation
                 if (++k > 100)
                     continue;
                 model.Name = model.Name + " edited";
+                if(model.ServerId != null)
+                    model.IsUpdatedLocal = true;
                 await EditModelInBases(model);
+                #endregion
+
+                #region Delete model
+                if (++l > 5)
+                {
+                    do
+                    {
+                        var randomId = new Random().Next(default, (_contextSet.Materials.Query().LastOrDefault()?.Id ?? default) + 1);
+                        model = _contextSet.Materials.Query().FirstOrDefault(x => x.Id == randomId);
+                        if (++k > 100)
+                            break;
+                    }
+                    while (model is null);
+                    if (++k > 100)
+                        continue;
+                }
+                #endregion
             }
         }
 
@@ -70,22 +97,22 @@ namespace TestSyncProg.DatabaseInstanceImitation
         {
             try
             {
-                connection.BeginTransaction();
-                if (!_context.Materials.TryInsert(model))
+                connectionSet.BeginTransaction();
+                if (!_contextSet.Materials.TryInsert(model))
                     throw new Exception("Can't add in local db");
 
-                connection.Commit();
+                connectionSet.Commit();
 
-                connection.BeginTransaction();
-                var syncResponce = await TryToAddToMSSqlServer(_context.Materials.Query().Where(x => x.ServerId == null).Take(20).ToArray());
+                connectionSet.BeginTransaction();
+                var syncResponce = await TryToAddToMSSqlServer(_contextSet.Materials.Query().Where(x => x.ServerId == null).Take(20).ToArray());
                 foreach (var responce in syncResponce.ResponceToAddingModels)
-                    DeserializeHelper.UpdateEntityServerIdByName(_context, responce.TableName, responce.LocalId, responce.ServerId);
+                    DeserializeHelper.UpdateEntityServerIdByName(_contextSet, responce.TableName, responce.LocalId, responce.ServerId);
 
-                connection.Commit();
+                connectionSet.Commit();
             }
             catch (Exception ex)
             {
-                connection.Rollback();
+                connectionSet.Rollback();
             }
         }
 
@@ -100,7 +127,7 @@ namespace TestSyncProg.DatabaseInstanceImitation
 
         private async Task AddToMsSql(SyncResponceDto responce, MaterialSqlite model)
         {
-            var check = _msSqlContextSet.EntityTracker.FirstOrDefault(x => x.LocalId == model.Id && x.UniqueUserId == _baseName);
+            var check = _msSqlContextSet.EntityTracker.FirstOrDefault(x => x.LocalId == model.Id && x.UniqueUserId == _uniqueUserName);
             if (check != null)
             {
                 responce.ResponceToAddingModels.Add(new ResponceToAddingModel
@@ -111,10 +138,8 @@ namespace TestSyncProg.DatabaseInstanceImitation
                 });
             }
 
-
             var addMaterialResponce = await _msSqlContextSet.Materials.AddAsync(new MaterialMSSql
             {
-                IsDeleted = model.IsDeleted,
                 LastUpdate = model.LastUpdate,
                 Name = model.Name
             });
@@ -128,7 +153,7 @@ namespace TestSyncProg.DatabaseInstanceImitation
                 ServerId = addMaterialResponce.Entity.Id,
                 ModelJson = JsonConvert.SerializeObject(model),
                 TableName = nameof(MaterialSqlite),
-                UniqueUserId = _baseName
+                UniqueUserId = _uniqueUserName
             });
             await _msSqlContextSet.SaveChangesAsync();
 
@@ -144,32 +169,38 @@ namespace TestSyncProg.DatabaseInstanceImitation
         {
             try
             {
-                connection.BeginTransaction();
-                if (!_context.Materials.TryUpdate(model))
+                connectionSet.BeginTransaction();
+                if (!_contextSet.Materials.TryUpdate(model))
                     throw new Exception();
-                connection.Commit();
+                connectionSet.Commit();
 
-                var updateEntity = _msSqlContextSet.Materials.FirstOrDefault(x => x.Id == model.ServerId);
-                updateEntity.Name = model.Name;
-                updateEntity.LastUpdate = model.LastUpdate;
-                updateEntity.IsDeleted = model.IsDeleted;
-                _msSqlContextSet.Materials.Update(updateEntity);
-                await _msSqlContextSet.SaveChangesAsync();
-
-                await _msSqlContextSet.EntityTracker.AddAsync(new EntityTrackerMSSql
+                var updatedLocalEntities = _contextSet.Materials.Query().Where(x => x.IsUpdatedLocal == true);
+                foreach (var updatedLocal in updatedLocalEntities)
                 {
-                    ServerId = updateEntity.Id,
-                    LocalId = model.Id,
-                    CommandType = CommandTypeEnum.Edit,
-                    ModelJson = JsonConvert.SerializeObject(model),
-                    TableName = nameof(MaterialSqlite),
-                    UniqueUserId = _baseName
-                });
-                await _msSqlContextSet.SaveChangesAsync();
+                    var updateEntity = _msSqlContextSet.Materials.FirstOrDefault(x => x.Id == updatedLocal.ServerId);
+                    if (updateEntity is null)
+                        continue;
+
+                    updateEntity.Name = updatedLocal.Name;
+                    updateEntity.LastUpdate = updatedLocal.LastUpdate;
+                    _msSqlContextSet.Materials.Update(updateEntity);
+                    await _msSqlContextSet.SaveChangesAsync();
+
+                    await _msSqlContextSet.EntityTracker.AddAsync(new EntityTrackerMSSql
+                    {
+                        ServerId = updateEntity.Id,
+                        LocalId = updatedLocal.Id,
+                        CommandType = CommandTypeEnum.Edit,
+                        ModelJson = JsonConvert.SerializeObject(updatedLocal),
+                        TableName = nameof(MaterialSqlite),
+                        UniqueUserId = _uniqueUserName
+                    });
+                    await _msSqlContextSet.SaveChangesAsync();
+                }
             }
             catch
             {
-                connection.Rollback();
+                connectionSet.Rollback();
             }
         }
 
@@ -182,51 +213,61 @@ namespace TestSyncProg.DatabaseInstanceImitation
             while (true)
             {
                 await Task.Delay(2000);
-                var last = _context.Configs.Query().FirstOrDefault(x => x.ConfigType == ConfigType.LastServerId);
+                var last = _contextGet.Configs.Query().FirstOrDefault(x => x.ConfigType == ConfigType.LastServerId);
                 var lastId = last == null ? -1 : last.Value;
                 var entities = _msSqlContextGet.EntityTracker.Where(x => x.Id > lastId
-                    && x.UniqueUserId != _baseName).Take(20).ToList();
+                    && x.UniqueUserId != _uniqueUserName || x.CommandType == CommandTypeEnum.Edit).Take(20).ToList();
 
                 try
                 {
-                    connection.BeginTransaction();
+                    connectionGet.BeginTransaction();
+                    long? lastUpdatedId = default;
                     foreach (var entity in entities)
-                        ExecuteSqliteCommnd(entity);
+                        lastUpdatedId = ExecuteSqliteCommnd(entity);
 
                     if (last != null)
                     {
-                        last.Value = entities.LastOrDefault()?.Id ?? last.Value;
-                        _context.Configs.TryUpdate(last);
+                        last.Value = lastUpdatedId ?? last.Value;
+                        _contextGet.Configs.TryUpdate(last);
                     }
                     else
                     {
-                        _context.Configs.TryInsert(new ConfigsSqLite
+                        _contextGet.Configs.TryInsert(new ConfigsSqLite
                         {
                             ConfigType = ConfigType.LastServerId,
                             Value = entities.LastOrDefault()?.Id ?? -1
                         });
                     }
-                    connection.Commit();
+                    connectionGet.Commit();
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
-                    connection.Rollback();
+                    connectionGet.Rollback();
                 }
             }
         }
 
-        private void ExecuteSqliteCommnd(EntityTrackerMSSql entity)
+        private long? ExecuteSqliteCommnd(EntityTrackerMSSql entity)
         {
-            switch (entity.CommandType)
+            try
             {
-                case CommandTypeEnum.Add:
-                    connection.Insert(DeserializeHelper.GetAnEntityOfSqlite( _context, entity.ModelJson, entity.TableName, entity.CommandType));
-                    break;
-                case CommandTypeEnum.Edit:
-                    connection.Update(DeserializeHelper.GetAnEntityOfSqlite(_context, entity.ModelJson, entity.TableName, entity.CommandType));
-                    break;
-                default:
-                    break;
+                switch (entity.CommandType)
+                {
+                    case CommandTypeEnum.Add:
+                        connectionGet.Insert(DeserializeHelper.GetSqliteEntity(_contextGet, entity.ModelJson, entity.TableName, entity.CommandType));
+                        break;
+                    case CommandTypeEnum.Edit:
+                        connectionGet.Update(DeserializeHelper.GetSqliteEntity(_contextGet, entity.ModelJson, entity.TableName, entity.CommandType));
+                        break;
+                    case CommandTypeEnum.Delete:
+                        connectionGet.Delete(DeserializeHelper.GetSqliteEntity(_contextGet, entity.ModelJson, entity.TableName, entity.CommandType));
+                        break;
+                }
+                return entity?.Id;
+            }
+            catch (Exception ex)
+            {
+                return entity?.Id;
             }
         }
     }
