@@ -11,4 +11,6 @@ public class MaterialMSSql : IHasId
     public bool IsDeleted { get; set; }
 
     public DateTime LastUpdate { get; set; }
+
+    public DateTime? DeleteDate { get; set; }
 }

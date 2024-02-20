@@ -2,6 +2,6 @@
 {
     public class SyncResponceDto
     {
-        public List<ResponceToAddingModel> ResponceToAddingModels { get; set; } = new List<ResponceToAddingModel>();
+        public List<ResponceModel> ResponceModels { get; set; } = new List<ResponceModel>();
     }
 }

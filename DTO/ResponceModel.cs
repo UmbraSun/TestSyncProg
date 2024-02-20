@@ -1,6 +1,6 @@
 ﻿namespace TestSyncProg.DTO
 {
-    public class ResponceToAddingModel
+    public class ResponceModel
     {
         public string TableName { get; set; }
 

@@ -15,5 +15,7 @@ public class MaterialSqlite : ILocalEntity
 
     public bool IsUpdatedLocal { get; set; }
 
+    public bool IsDeletedLocal { get; set; }
+
     public DateTime LastUpdate { get; set; }
 }

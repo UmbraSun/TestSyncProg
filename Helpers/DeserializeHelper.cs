@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using TestSyncProg.Common;
 using TestSyncProg.DbContexts;
+using TestSyncProg.DTO;
 using TestSyncProg.Entity;
 using TestSyncProg.Interfaces;
 
@@ -36,33 +37,33 @@ namespace TestSyncProg.Helpers
                 case nameof(MaterialSqlite):
                     var model = JsonConvert.DeserializeObject<MaterialSqlite>(jsonModel);
                     return GetModifyEntityByCommandType(context, model, commandType);
-                    //if (commandType == CommandTypeEnum.Edit)
-                    //{
-                    //    var entity = context.Materials.Query().FirstOrDefault(x => x.ServerId == model.ServerId);
-                    //    if (entity is null)
-                    //        return default;
-                    //    model.Id = entity.Id;
-                    //    model.IsUpdatedLocal = false;
-                    //}
-                    //else if(commandType == CommandTypeEnum.Delete)
-                    //{
-                    //    model = context.Materials.Query().FirstOrDefault(x => x.ServerId == model.ServerId);
-                    //}
-                    //return model;
                 default:
                     return default;
             }
         }
 
-        public static void UpdateEntityServerIdByName(SqLiteDbContext context, string modelType, int localId, int serverId)
+        public static void DeleteEntityByServerId(SqLiteDbContext context, ResponceModel responce)
         {
-            switch (modelType)
+            switch (responce.TableName)
             {
                 case nameof(MaterialSqlite):
-                    var model = context.Materials.Query().FirstOrDefault(x => x.Id == localId);
+                    var model = context.Materials.Query().FirstOrDefault(x => x.ServerId == responce.ServerId);
                     if (model is null)
                         return;
-                    model.ServerId = serverId;
+                    context.Materials.TryDelete(model);
+                    break;
+            }
+        }
+
+        public static void UpdateEntityServerIdByName(SqLiteDbContext context, ResponceModel responce)
+        {
+            switch (responce.TableName)
+            {
+                case nameof(MaterialSqlite):
+                    var model = context.Materials.Query().FirstOrDefault(x => x.Id == responce.LocalId);
+                    if (model is null)
+                        return;
+                    model.ServerId = responce.ServerId;
                     context.Materials.TryUpdate(model);
                     break;
             }
